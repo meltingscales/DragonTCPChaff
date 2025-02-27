@@ -6,15 +6,21 @@
 #              over Yggdrasil (or other mesh network). Includes self-monitoring
 #              for file size and restarts capture+fuzz cycle automatically.
 
+DEBUG=1
+
+if [ $DEBUG -ge 1 ]; then
+    set -euxo pipefail
+fi
+
 # Configuration
-INTERFACE="wlan0"               # Capture interface
+INTERFACE="wlo1"               # Capture interface
 CAPTURE_FILE="real_traffic.pcap" # Raw capture
 FUZZED_FILE="fuzzed_traffic.bin" # Fuzzed output
 
 KILO=1024
 MEGA=$((KILO * 1024))
 GIGA=$((MEGA * 1024))
-MAX_FILE_SIZE=$((10 * GIGA)) # 10GB max
+MAX_FILE_SIZE=$((10 * MEGA)) # 10GB max
 
 YGG_PEER_IP="[YGG_PEER_IP_HERE]" # Replace with your mesh peer
 YGG_PORT=9999                     # UDP port for junk traffic
@@ -34,6 +40,13 @@ persistence_check "$@"
 
 # Capture real traffic
 function capture_traffic() {
+
+    # make sure our interface actually exists.
+    if ! ip link show "$INTERFACE" > /dev/null 2>&1; then
+        echo "[!] Interface $INTERFACE does not exist. Exiting."
+        exit 1
+    fi
+
     echo "[+] Capturing real traffic on $INTERFACE..."
     tcpdump -i "$INTERFACE" -w "$CAPTURE_FILE" -G 3600 -W 1
 }
