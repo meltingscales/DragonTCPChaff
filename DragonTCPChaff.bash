@@ -5,6 +5,8 @@
 # Description: Captures real traffic, fuzzes it, and continuously broadcasts
 #              over Yggdrasil (or other mesh network). Includes self-monitoring
 #              for file size and restarts capture+fuzz cycle automatically.
+# CLI docs:
+#   --capture   Delete cached capture file.
 
 DEBUG=1
 
@@ -20,7 +22,7 @@ FUZZED_FILE="fuzzed_traffic.bin" # Fuzzed output
 KILO=1024
 MEGA=$((KILO * 1024))
 GIGA=$((MEGA * 1024))
-MAX_FILE_SIZE=$((10 * MEGA)) # 10GB max
+MIN_FILE_SIZE=$((10 * MEGA)) # minimum file size needed for operation
 
 YGG_PEER_IP="[YGG_PEER_IP_HERE]" # Replace with your mesh peer
 YGG_PORT=9999                     # UDP port for junk traffic
@@ -40,7 +42,6 @@ persistence_check "$@"
 
 # Capture real traffic
 function capture_traffic() {
-
     # make sure our interface actually exists.
     if ! ip link show "$INTERFACE" > /dev/null 2>&1; then
         echo "[!] Interface $INTERFACE does not exist. Exiting."
@@ -54,9 +55,10 @@ function capture_traffic() {
 # Check file size
 function check_file_size() {
     FILE_SIZE=$(stat -c%s "$CAPTURE_FILE")
-    if [[ "$FILE_SIZE" -ge "$MAX_FILE_SIZE" ]]; then
-        echo "[!] File reached max size ($FILE_SIZE bytes). Starting over."
+    if [[ "$FILE_SIZE" -lt "$MIN_FILE_SIZE" ]]; then
+        echo "[!] File is too small ($FILE_SIZE bytes). Removing and re-capturing."
         rm -f "$CAPTURE_FILE"
+        capture_traffic
     fi
 }
 
@@ -91,8 +93,16 @@ function broadcast_junk() {
 }
 
 # Main Loop
-while true; do
+if [[ "$1" == "--capture" ]]; then
+    rm -f "$CAPTURE_FILE"
     capture_traffic
+fi
+
+if [ ! -f "$CAPTURE_FILE" ]; then
+    capture_traffic
+fi
+
+while true; do
     check_file_size
     fuzz_traffic
     split_fuzzed_traffic
