@@ -5,8 +5,6 @@
 # Description: Captures real traffic, fuzzes it, and continuously broadcasts
 #              over Yggdrasil (or other mesh network). Includes self-monitoring
 #              for file size and restarts capture+fuzz cycle automatically.
-# CLI docs:
-#   --capture   Delete cached capture file.
 
 DEBUG=1
 
@@ -27,6 +25,30 @@ MIN_FILE_SIZE=$((10 * MEGA)) # minimum file size needed for operation
 YGG_PEER_IP="[YGG_PEER_IP_HERE]" # Replace with your mesh peer
 YGG_PORT=9999                     # UDP port for junk traffic
 
+function show_help() {
+    cat <<EOF
+DragonTCPChaff - Automated Junk Traffic Generator and Broadcaster
+Version 1.0
+
+Usage:
+    \$0 [--capture] [--help]
+
+Options:
+    --capture   Delete cached capture file and force fresh traffic capture.
+    --help      Show this help message.
+
+Description:
+    Captures real network traffic, mutates it into junk packets, and continuously
+    broadcasts these packets over Yggdrasil (or any mesh network you choose).
+    This simulates realistic noise to obscure real traffic.
+
+Example:
+    \$0 --capture
+    Forces a fresh capture session before starting junk broadcasts.
+EOF
+    exit 0
+}
+
 # Check persistence - keep running if killed unexpectedly
 function persistence_check() {
     while true; do
@@ -42,7 +64,6 @@ persistence_check "$@"
 
 # Capture real traffic
 function capture_traffic() {
-    # make sure our interface actually exists.
     if ! ip link show "$INTERFACE" > /dev/null 2>&1; then
         echo "[!] Interface $INTERFACE does not exist. Exiting."
         exit 1
@@ -92,11 +113,21 @@ function broadcast_junk() {
     done
 }
 
-# Main Loop
-if [[ "$1" == "--capture" ]]; then
-    rm -f "$CAPTURE_FILE"
-    capture_traffic
-fi
+case "$1" in
+    --help)
+        show_help
+        ;;
+    --capture)
+        rm -f "$CAPTURE_FILE"
+        capture_traffic
+        ;;
+    "")
+        ;;
+    *)
+        echo "Unknown argument: $1"
+        show_help
+        ;;
+esac
 
 if [ ! -f "$CAPTURE_FILE" ]; then
     capture_traffic
